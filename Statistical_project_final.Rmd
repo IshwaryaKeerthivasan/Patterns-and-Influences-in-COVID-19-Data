@@ -1,0 +1,197 @@
+---
+title: "Exploring Patterns and Influences in COVID-19 Data: A Statistical Analysis"
+author: "Ishwarya keerthivasan"
+date: "2023-12-18"
+output:
+  html_document:
+    df_print: paged
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Abstract
+
+This Project investigates COVID-19 data through a rigorous statistical lens, aiming to uncover patterns, influences, and trends in the pandemic's trajectory. The study meticulously examines various visualizations and statistical methods to elucidate critical insights. It explores the impact of WHO regions on reported new cases across countries and analyzes temporal trends in new deaths. Leveraging a dataset spanning the pandemic's timeline, the research employs a meticulous data preparation process, acknowledging biases and ensuring robustness. A suite of compelling visualizations, including line plots, mosaic plots, map visualizations, 3D scatter plots, and a correlogram, complements the analyses, providing a comprehensive understanding of COVID-19 data dynamics. The paper applies hypothesis tests, aligning with research questions and statistical methodologies, yielding nuanced insights. The results and conclusions drawn from the analyses offer a clear and substantiated perspective on the pandemic's patterns, facilitating informed understanding and potential future research avenues.
+
+```{r Covid_data}
+# Load CSV data into a variable (change file path if necessary)
+covid_data <- read.csv("WHO-COVID-19-global-data.csv", stringsAsFactors = FALSE)
+```
+
+## Understanding the data: 
+
+During the preliminary data exploration phase, a pivotal step in comprehending the COVID-19 data set involved crafting a set of diverse visualizations. These visual representations served as essential tools to unravel underlying trends, intricate patterns, and interrelationships embedded within the data set.
+
+```{r structure of the data}
+# Check the structure of the loaded data
+str(covid_data)
+```
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
+
+```{r stat_summary}
+# Check for missing values
+summary(covid_data)
+```
+
+```{r Load_libraries}
+library(ggplot2)
+library(plotly)
+library(reshape2)
+library(dplyr)
+```
+
+
+```{r Line_plot}
+# Line plot for cumulative cases over time
+ggplot(covid_data, aes(x = Date_reported, y = Cumulative_cases, group = 1)) +
+  geom_line(color = "darkslateblue") +
+  labs(title = "Cumulative COVID-19 Cases Over Time",
+       x = "Date",
+       y = "Cumulative Cases") +
+  theme_minimal()
+```
+
+
+
+```{r Mosaic plot}
+# Mosaic plot for region-wise distribution of new cases
+ggplot(data = covid_data, aes(weight = New_cases, x = "", fill = WHO_region)) +
+  geom_bar(width = 1) +
+  coord_polar("y", start = 0) +
+  labs(title = "Region-wise Distribution of New Cases",
+       fill = "WHO Region") +
+  theme_void() +
+  theme(legend.position = "bottom")
+```
+
+```{r}
+
+library(plotly)
+library(dplyr)
+
+# Assuming covid_data is your data frame
+plot <- plot_ly(data = covid_data, x = ~New_cases, y = ~Cumulative_cases, z = ~New_deaths, 
+                type = "scatter3d", mode = "markers", marker = list(size = 5, color = "darkslateblue"))
+
+plot <- plot %>% layout(scene = list(xaxis = list(title = "New Cases"),
+                                     yaxis = list(title = "Cumulative Cases"),
+                                     zaxis = list(title = "New Deaths")),
+                        title = "3D Scatter Plot of COVID-19 Data")
+
+plot  # Display the plot
+
+
+
+```
+
+
+
+```{r corrplot}
+library(corrplot)
+# Correlogram for correlations between variables
+cor_matrix <- cor(covid_data[, c("New_cases", "Cumulative_cases", "New_deaths", "Cumulative_deaths")])
+corrplot(cor_matrix, method = "circle", type = "lower", tl.col = "black")
+```
+
+
+```{r pairplot}
+library(GGally)
+# Advanced Visualization with GGally for pairwise scatter plots
+ggpairs(covid_data[, c("New_cases", "Cumulative_cases", "New_deaths", "Cumulative_deaths")])
+```
+
+## Hypothesis 1:
+
+**Purpose:**
+The number of new cases reported in a country is influenced by the WHO region.
+
+**Null Hypothesis (H0):** The WHO region does not have any significant influence on the number of new cases reported in a country.
+
+**Alternative Hypothesis (H1):** The WHO region has a significant influence on the number of new cases reported in a country.
+
+```{r}
+# Fit a linear model (ANOVA) to test the influence of WHO region on New cases
+model <- lm(New_cases ~ WHO_region, data = covid_data)
+
+# Perform ANOVA to test for differences in new cases among WHO regions
+anova_result <- anova(model)
+
+anova_result
+```
+**Interpretation:**
+The p-value obtained (p < 0.001) suggests strong evidence against the null hypothesis that the WHO region does not have a significant influence on the number of new cases reported in a country. Therefore, based on this analysis, it appears that the WHO region has a statistically significant impact on the reported new cases.
+
+
+## Hypothesis 2:
+
+**Purpose:**
+There is a temporal trend in the number of new deaths reported over time.
+
+**Null Hypothesis (H0):** There is no temporal trend or significant change in the number of new deaths reported over time.
+
+**Alternative Hypothesis (H1):** There exists a temporal trend or significant change in the number of new deaths reported over time.
+
+
+```{r}
+# Assuming your data frame is named 'covid_data'
+# Convert Date_reported column to Date format if it's not already in Date format
+covid_data$Date_reported <- as.Date(covid_data$Date_reported)
+
+# Fit a linear regression model to assess the trend in New deaths over time
+model <- lm(New_deaths ~ Date_reported, data = covid_data)
+
+summary(model)
+```
+**Interpretation:**
+The linear regression analysis shows a statistically significant but very weak negative relationship between the date reported and the number of new deaths. However, the model explains only a small fraction of the variance in new deaths based on the date reported, suggesting that other factors not included in this model might influence the number of new deaths reported over time.
+
+
+## Hypothesis 3:
+
+**Purpose:** 
+To conduct hypothesis tests without assuming a specific distribution.
+
+**Null Hypothesis (H0):** There is no difference in the average number of new cases reported between the first half and the second half of the data set.
+
+**Alternative Hypothesis (H1):** There is a significant difference in the average number of new cases reported between the first half and the second half of the dataset.
+
+```{r}
+# Calculate the midpoint of the dataset
+midpoint <- nrow(covid_data) / 2
+
+# Extract new cases for the first and second halves
+first_half <- covid_data[1:midpoint, "New_cases"]
+second_half <- covid_data[(midpoint + 1):nrow(covid_data), "New_cases"]
+
+# Calculate the observed difference in means
+observed_diff <- mean(first_half) - mean(second_half)
+
+# Function to perform permutation test
+permutation_test <- function(iterations = 1000) {
+  diffs <- numeric(iterations)
+  for (i in 1:iterations) {
+    combined <- sample(c(first_half, second_half))
+    perm_first_half <- combined[1:length(first_half)]
+    perm_second_half <- combined[(length(first_half) + 1):length(combined)]
+    diffs[i] <- mean(perm_first_half) - mean(perm_second_half)
+  }
+  return(diffs)
+}
+
+# Perform permutation test
+set.seed(123)  # For reproducibility
+perm_diffs <- permutation_test(iterations = 1000)
+
+# Calculate p-value
+p_value <- mean(abs(perm_diffs) >= abs(observed_diff))
+
+p_value
+```
+
+**Interpretation:**
+A p-value of 0 suggests that among the randomly permuted differences in means generated by the permutation test, none were as extreme as the observed difference. In other words, the observed difference in the average number of new cases between the first and second halves of the dataset is so far from what would be expected under the null hypothesis (where there's no difference) that it essentially indicates strong evidence against the null hypothesis.
+
+Therefore, we can reject the null hypothesis and conclude that there is a statistically significant difference in the average number of new cases between the two time periods (first and second halves of the data set). 
